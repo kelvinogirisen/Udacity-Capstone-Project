@@ -1,0 +1,310 @@
+# Todo: Change the name of the org 
+org: kelvinogirisen
+app: udacity-cloud-dev-project
+service: udacity-cloud-dev-project
+
+plugins:
+  - serverless-webpack
+  - serverless-reqvalidator-plugin
+  - serverless-aws-documentation
+  - serverless-iam-roles-per-function
+  - serverless-plugin-tracing
+  - serverless-dynamodb-local
+  - serverless-offline
+provider:
+  name: aws
+  runtime: nodejs12.x
+  lambdaHashingVersion: '20201221'
+
+  stage: ${opt:stage, 'dev'}
+  region: ${opt:region, 'us-east-2'}
+
+  tracing:
+    lambda: true
+    apiGateway: true
+
+  # Use these variables in the functions and resouorces section below. For example, 
+  # ${self:provider.environment.ATTACHMENT_S3_BUCKET}
+  environment:
+    PROPERTY_TABLE: Properties-${self:provider.stage}    
+    PROPERTY_CREATED_AT_INDEX: CreatedAtIndex
+    ATTACHMENT_S3_BUCKET: serverless-capstone-property-images-${self:provider.stage}-${self:provider.region}
+    SIGNED_URL_EXPIRATION: 300
+
+  logs:
+    # Enable API Gateway logs
+    restApi: true
+  
+  iamRoleStatements:
+    - Effect: Allow 
+      Action:
+        - dynamodb:GetItem
+        - dynamodb:Query          
+        - dynamodb:Scan          
+        - dynamodb:PutItem
+        - dynamodb:UpdateItem
+        - dynamodb:DeleteItem
+      Resource: arn:aws:dynamodb:${self:provider.region}:*:table/${self:provider.environment.PROPERTY_TABLE} 
+    - Effect: Allow
+      Action: 
+        - s3:PutObject
+        - s3:GetObject
+      Resource: arn:aws:s3:::${self:provider.environment.ATTACHMENT_S3_BUCKET}/*         
+    - Effect: Allow
+      Action:
+        - xray:PutTelemetryRecords
+        - xray:PutTraceSegments
+      Resource: "*"
+    - Effect: Allow
+      Action:
+        - logs:CreateLogStream
+        - logs:CreateLogGroup
+        - logs:PutLogEvents
+      Resource: "*"
+
+custom:
+  serverless-offline:
+    port: 3003
+
+  dynamodb:
+    stages:
+      - ${self:provider.stage}
+    start:
+      port: 8000
+      inMemory: true
+      migrate: true
+
+  documentation:
+    api:
+      info:
+        version: v1.0.0
+        title: Property Listing API
+        description: Serverless Property Listing App
+    models:
+      - name: CreatePropertyRequest
+        contentType: application/json
+        schema: ${file(models/create-property-model.json)}
+      - name: UpdatePropertyRequest
+        contentType: application/json
+        schema: ${file(models/update-property-model.json)}     
+
+functions:
+  Auth:
+    handler: src/lambda/auth/auth0Authorizer.handler
+
+  # Todo: Configure this function - 
+  # Provide iamRoleStatements property for performing Actions on DynamoDB
+  GetProperty:
+    handler: src/lambda/http/getProperty.handler
+    tracing: Active
+    events:
+      - http:
+          method: get
+          path: property
+          cors: true
+          authorizer: Auth
+          reqValidatorName: RequestBodyValidator
+    iamRoleStatementsInherit: true      
+    iamRoleStatementsName: getProperty-dev
+    iamRoleStatements:
+      - Effect: Allow 
+        Action:
+          - dynamodb:GetItem
+          - dynamodb:Query
+        Resource: arn:aws:dynamodb:${self:provider.region}:*:table/${self:provider.environment.PROPERTY_TABLE}
+
+
+  # Todo: Configure this function - 
+  # Provide iamRoleStatements property. Decide the Actions and AWS Resource. 
+  # To refer to an AWS resource defined in the "Resources" section, you can use "Resource: !GetAtt <resource-name>.Arn"
+  # To validate incoming HTTP requests, we have provided the request schemas in function definition below. 
+  CreateProperty:
+    handler: src/lambda/http/createProperty.handler
+    tracing: Active
+    events:
+      - http:
+          method: post
+          path: property
+          cors: true
+          authorizer: Auth
+          reqValidatorName: RequestBodyValidator
+          documentation:
+            summary: Create a new property item
+            description: Create a new property item
+            requestModels:
+              'application/json': CreatePropertyRequest
+          request:
+            schemas:
+              application/json: ${file(models/create-property-model.json)}         
+    iamRoleStatementsInherit: true      
+    iamRoleStatementsName: createProperty-dev
+    iamRoleStatements:
+      - Effect: Allow 
+        Action:
+          - dynamodb:PutItem
+          - dynamodb:Query          
+        Resource: arn:aws:dynamodb:${self:provider.region}:*:table/${self:provider.environment.PROPERTY_TABLE}
+
+  # Todo: Configure this function
+  # Provide property for setting up CORS, Authorizer, iamRoleStatements, and request schemas
+  UpdateProperty:
+    handler: src/lambda/http/updateProperty.handler
+    events:
+      - http:
+          method: patch
+          path: property/{propertyId}
+          cors: true
+          authorizer: Auth
+          reqValidatorName: RequestBodyValidator
+          documentation:
+            summary: Update a property item
+            description: Update a property item
+            requestModels:
+              'application/json': UpdatePropertyRequest
+          request:
+            schemas:
+              application/json: ${file(models/update-property-model.json)}         
+    iamRoleStatementsInherit: true      
+    iamRoleStatementsName: updateProperty-dev
+    iamRoleStatements:
+      - Effect: Allow 
+        Action:
+          - dynamodb:UpdateItem
+          - dynamodb:Query
+        Resource: arn:aws:dynamodb:${self:provider.region}:*:table/${self:provider.environment.PROPERTY_TABLE}
+
+  # Todo: Configure this function
+  # Provide property for setting up CORS, Authorizer, iamRoleStatements
+  DeleteProperty:
+    handler: src/lambda/http/deleteProperty.handler
+    events:
+      - http:
+          method: delete
+          path: property/{propertyId}
+          cors: true
+          authorizer: Auth
+          reqValidatorName: RequestBodyValidator
+          documentation:
+            summary: Delete a property item
+            description: Delete a property item                      
+    iamRoleStatementsInherit: true      
+    iamRoleStatementsName: DeleteProperty-dev
+    iamRoleStatements:
+      - Effect: Allow 
+        Action:
+          - dynamodb:DeleteItem
+          - dynamodb:Query                  
+        Resource: arn:aws:dynamodb:${self:provider.region}:*:table/${self:provider.environment.PROPERTY_TABLE}
+
+  # Todo: Configure this function
+  # Provide property for setting up CORS, Authorizer, iamRoleStatements
+  GenerateUploadUrl:
+    handler: src/lambda/http/generateUploadUrl.handler
+    events:
+      - http:
+          method: post
+          path: property/{propertyId}/attachment
+          cors: true
+          authorizer: Auth
+    iamRoleStatements:
+      - Effect: Allow
+        Action: 
+          - s3:PutObject
+          - s3:GetObject
+        Resource: arn:aws:s3:::${self:provider.environment.ATTACHMENT_S3_BUCKET}/*
+      - Effect: "Allow"
+        Action:
+          - dynamodb:UpdateItem
+        Resource: arn:aws:dynamodb:${self:provider.region}:*:table/${self:provider.environment.PROPERTY_TABLE}
+
+resources:
+  Resources:
+    # Add necessary AWS resources. You will need at least the following AWS resources
+    # Todo: Fill the properties
+    # Feel free to change the names as you like. 
+    GatewayResponseDefault4XX:
+      Type: AWS::ApiGateway::GatewayResponse
+      Properties:
+        ResponseParameters:
+          gatewayresponse.header.Access-Control-Allow-Origin: "'*'"
+          gatewayresponse.header.Access-Control-Allow-Headers: "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'"
+          gatewayresponse.header.Access-Control-Allow-Methods: "'GET,OPTIONS,POST'"
+        ResponseType: DEFAULT_4XX
+        RestApiId:
+          Ref: ApiGatewayRestApi
+    
+    # Todo: Create a DynamoDB table with local secondary index and a composite key
+    PropertysTable:
+      Type: AWS::DynamoDB::Table
+      Properties:
+        AttributeDefinitions:
+          - AttributeName: userId
+            AttributeType: S
+          - AttributeName: propertyId
+            AttributeType: S 
+          - AttributeName: createdAt
+            AttributeType: S                
+        KeySchema:
+          - AttributeName: userId
+            KeyType: HASH
+          - AttributeName: propertyId
+            KeyType: RANGE
+        BillingMode: PAY_PER_REQUEST
+        StreamSpecification:
+          StreamViewType: NEW_IMAGE
+        TableName: ${self:provider.environment.PROPERTY_TABLE}
+        GlobalSecondaryIndexes:
+          - IndexName: ${self:provider.environment.PROPERTY_CREATED_AT_INDEX}
+            KeySchema:
+            - AttributeName: userId
+              KeyType: HASH
+            - AttributeName: createdAt
+              KeyType: RANGE
+            Projection:
+              ProjectionType: ALL
+
+    RequestBodyValidator:
+      Type: AWS::ApiGateway::RequestValidator
+      Properties:
+        Name: 'request-body-validator'
+        RestApiId:
+          Ref: ApiGatewayRestApi
+        ValidateRequestBody: true
+        ValidateRequestParameters: true
+
+    # Todo: Complete the bucket properties below. 
+    # Do not forget to add the CorsConfiguration propoerty
+    AttachmentsBucket:
+      Type: AWS::S3::Bucket      
+      Properties:
+        BucketName: ${self:provider.environment.ATTACHMENT_S3_BUCKET}        
+        CorsConfiguration:
+          CorsRules:
+            -
+              AllowedOrigins:
+                - '*'
+              AllowedHeaders:
+                - '*'
+              AllowedMethods:
+                - GET
+                - PUT
+                - POST
+                - DELETE
+                - HEAD
+              MaxAge: 3000
+
+    # Todo: Complete the policy below and attach it to the bucket defined above
+    # For cross referencing the name of the bucket, use "!Ref AttachmentsBucket"
+    BucketPolicy:
+      Type: AWS::S3::BucketPolicy
+      Properties:
+        PolicyDocument:
+          Id: MyPolicy
+          Version: "2012-10-17"
+          Statement:
+            - Sid: PublicReadForGetBucketObjects
+              Effect: Allow
+              Principal: '*'
+              Action: 's3:GetObject'
+              Resource: arn:aws:s3:::${self:provider.environment.ATTACHMENT_S3_BUCKET}/*
+        Bucket: !Ref AttachmentsBucket

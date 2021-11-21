@@ -1,0 +1,33 @@
+{
+  "$schema": "http://json-schema.org/draft-04/schema#",
+  "title": "property",
+  "type": "object",
+  "properties": {
+    "title": {
+      "type": "string",
+      "minLength": 3
+    },
+    "description": {
+      "type": "string"
+    },
+    "type": {
+      "type": "string"
+    },
+    "location": {
+      "type": "string"
+    },
+    "expireDate": {
+      "type": "string"
+    }
+    
+
+  },
+  "required": [
+    "title",
+    "description",
+    "type",
+    "location",
+    "expireDate"
+  ],
+  "additionalProperties": false
+}
