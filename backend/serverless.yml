@@ -35,21 +35,7 @@ provider:
     # Enable API Gateway logs
     restApi: true
   
-  iamRoleStatements:
-    - Effect: Allow 
-      Action:
-        - dynamodb:GetItem
-        - dynamodb:Query          
-        - dynamodb:Scan          
-        - dynamodb:PutItem
-        - dynamodb:UpdateItem
-        - dynamodb:DeleteItem
-      Resource: arn:aws:dynamodb:${self:provider.region}:*:table/${self:provider.environment.PROPERTY_TABLE} 
-    - Effect: Allow
-      Action: 
-        - s3:PutObject
-        - s3:GetObject
-      Resource: arn:aws:s3:::${self:provider.environment.ATTACHMENT_S3_BUCKET}/*         
+  iamRoleStatements:             
     - Effect: Allow
       Action:
         - xray:PutTelemetryRecords
