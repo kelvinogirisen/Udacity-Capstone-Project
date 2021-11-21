@@ -180,7 +180,7 @@ export class Propertys extends React.PureComponent<PropertysProps, PropertysStat
           </Grid.Column>            
         </Grid.Row> 
              
-        {this.state.propertyItem.map((propertyItem, pos) => {
+        {this.state.propertyItem?.map((propertyItem, pos) => {
           return (
             <Grid.Row key={propertyItem.propertyId}>              
               <Grid.Column width={3} verticalAlign="middle">
